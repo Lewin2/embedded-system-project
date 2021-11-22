@@ -1,2 +1,9 @@
-# embedded-system-project
-embedded system project source code
+# 임베디드 시스템 기말 프로젝트
+## 순천향대학교 사물인터넷 학과 5조
+### 프로젝트 목록
+
+1. 버스 예약  
+2. 버스 마스터 컨트롤  
+3. 버스 앞문  
+4. 버스 뒷문  
+5. 흡연 감지  
