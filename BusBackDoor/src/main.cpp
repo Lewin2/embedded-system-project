@@ -46,6 +46,7 @@ byte creat1[] = {
   B01001,
   B00110
 };
+
 byte creat2[] = {
   B10000,
   B00000,
@@ -58,135 +59,142 @@ byte creat2[] = {
 };
 
 void setup() {
-  Serial.begin(9600);
-  mySerial.begin(9600);
+    Serial.begin(9600);
+    mySerial.begin(9600);
 
-  Wire.begin(sv);
-  Wire.onReceive(receiveEvent);
-  
-  pinMode(pinTrig, OUTPUT);
-  pinMode(pinEcho, INPUT);
+    Wire.begin(sv);
+    Wire.onReceive(receiveEvent);
 
-  // 서보모터
-  servo.attach(pinServo);
-  servo.write(0);
-  
-  Serial.println("S - start");
+    pinMode(pinTrig, OUTPUT);
+    pinMode(pinEcho, INPUT);
 
-  // LCD
-  lcd.begin(16, 2);
-  lcd.createChar(1, creat1);
-  lcd.createChar(2, creat2);
+    // 서보모터
+    servo.attach(pinServo);
+    servo.write(0);
+
+    Serial.println("S - start");
+
+    // LCD
+    lcd.begin(16, 2);
+    lcd.createChar(1, creat1);
+    lcd.createChar(2, creat2);
 }
 
 String strOpen = "open";
 String strClose = "close";
 byte c = '1';
 
-void loop() {  
-  // 초음파
-  digitalWrite(pinTrig, LOW); delayMicroseconds(2);
-  digitalWrite(pinTrig, HIGH); delayMicroseconds(10);
-  digitalWrite(pinTrig, LOW);
+void loop() {
+    // 초음파
+    digitalWrite(pinTrig, LOW); delayMicroseconds(2);
+    digitalWrite(pinTrig, HIGH); delayMicroseconds(10);
+    digitalWrite(pinTrig, LOW);
 
-  L = pulseIn(pinEcho, HIGH)/58.82;
+    L = pulseIn(pinEcho, HIGH) / 58.82;
 
-  // 초음파부터 땅바닥까지 약 18cm
-  // 초음파부터 문바닥(끝)까지 약 12cm
+    // 초음파부터 땅바닥까지 약 18cm
+    // 초음파부터 문바닥(끝)까지 약 12cm
 
-  // UART통신(마스터-버튼)  마스터쪽 버튼을 누르면 뒷문 열림
-  if(mySerial.available()) {
-    String inString = mySerial.readStringUntil('\n');
-    boolean open = inString.equals(strOpen);
-    boolean close = inString.equals(strClose);
-    if(open){
-      servo.write(180);
-      Serial.println("S - open");
-      lcd.setCursor(0, 1); lcd.print("                ");
+    // UART통신(마스터-버튼)  마스터쪽 버튼을 누르면 뒷문 열림
+    if (mySerial.available()) {
+        // Serial.readStringUntil('\n') \n문자를 만날때 까지 문자열 읽기
+        String inString = mySerial.readStringUntil('\n');
+        boolean open = inString.equals(strOpen);
+        boolean close = inString.equals(strClose);
+        if (open) {
+            servo.write(180);
+            Serial.println("S - open");
+            //lcd.clear();
+            //lcd.setCursor(0, 0); lcd.print("                ");
+            //lcd.setCursor(5, 0); lcd.print("OPEN!");
+            lcd.setCursor(0, 1); lcd.print("                ");
+        }
+        else if (close) {
+            servo.write(0);
+            openclose = true;
+
+            l1 = millis();
+            isClosed = true;
+            Serial.println("S - close");
+            //lcd.clear();
+            //lcd.setCursor(0, 0); lcd.print("                ");
+            //lcd.setCursor(5, 0); lcd.print("CLOSE");
+            lcd.setCursor(0, 1); lcd.print("                ");
+        }
     }
-    else if(close) {
-      servo.write(0);
-      openclose = true;
-      
-      l1 = millis();
-      isClosed = true;
-      Serial.println("S - close");
-      lcd.setCursor(0, 1); lcd.print("                ");
+
+    // 통신(마스터-버튼) 초음파로 인해 문이 열린것을 감지해 마스터에 문이 열렸다고 알림
+    if (isClosed && openclose && L <= 10) {
+        servo.write(180);
+        dooropen = true;
+        openclose = false;
+        Serial.println("S - 문끼임, open");
+        lcd.setCursor(0, 1); lcd.print("                ");
+        lcd.setCursor(1, 1); lcd.print("CHECK BACKDOOR");
+        mySerial.write('1'); // 문끼임 발생하여 마스터쪽 close를 open으로 바꿈
     }
-  }
 
-// 통신(마스터-버튼) 초음파로 인해 문이 열린것을 감지해 마스터에 문이 열렸다고 알림
-  if (isClosed && openclose && L <= 10) {
-    servo.write(180);
-    dooropen = true;
-    openclose = false;
-    Serial.println("S - 문끼임, open");
-    lcd.setCursor(0, 1); lcd.print("                ");
-    lcd.setCursor(1, 1); lcd.print("CHECK BACKDOOR");
-    mySerial.write('1'); // 문끼임 발생하여 마스터쪽 close를 open으로 바꿈
-  }
-
-  l2 = millis();
-  if ( l2 - l1 >= 3000){
-    isClosed = false;
-  }
+    l2 = millis();
+    if (l2 - l1 >= 3000) {
+        isClosed = false;
+    }
 
 }
 
 // I2C통신 (마스터-조이스틱) 버스 예약후 버스 내부 LCD에 예약 출력
-void receiveEvent(int howMany){
-  char c = Wire.read();
+void receiveEvent(int howMany) {
+    char c = Wire.read();
 
-  switch(c){
-    case '1': 
-      lcd.setCursor(0, 0); lcd.print("                ");
-      lcd.setCursor(5, 0); lcd.write(1); 
-      lcd.setCursor(6, 0); lcd.write(2);
-      lcd.setCursor(8, 0); lcd.print("400");  
-      lcd.setCursor(0, 1); lcd.print("                ");
-      lcd.setCursor(0, 1); lcd.write(1); 
-      lcd.setCursor(1, 1); lcd.write(2);
-      lcd.setCursor(0, 1); lcd.print("SCH University");
-      break;
-      
+    switch (c) {
+    case '1':
+        lcd.setCursor(0, 0); lcd.print("                ");
+        lcd.setCursor(5, 0); lcd.write(1);
+        lcd.setCursor(6, 0); lcd.write(2);
+        lcd.setCursor(8, 0); lcd.print("400");
+        lcd.setCursor(0, 1); lcd.print("                ");
+        lcd.setCursor(0, 1); lcd.write(1);
+        lcd.setCursor(1, 1); lcd.write(2);
+        lcd.setCursor(0, 1); lcd.print("SCH University");
+        break;
+
     case '2':
-      lcd.setCursor(0, 0); lcd.print("                ");
-      lcd.setCursor(5, 0); lcd.write(1);
-      lcd.setCursor(6, 0); lcd.write(2);
-      lcd.setCursor(8, 0); lcd.print("403"); 
-      lcd.setCursor(0, 1); lcd.write(1); 
-      lcd.setCursor(1, 1); lcd.write(2);
-      lcd.setCursor(0, 1); lcd.print("SCH University");
-      break;
-      
+        lcd.setCursor(0, 0); lcd.print("                ");
+        lcd.setCursor(5, 0); lcd.write(1);
+        lcd.setCursor(6, 0); lcd.write(2);
+        lcd.setCursor(8, 0); lcd.print("403");
+        lcd.setCursor(0, 1); lcd.write(1);
+        lcd.setCursor(1, 1); lcd.write(2);
+        lcd.setCursor(0, 1); lcd.print("SCH University");
+        break;
+
     case '3':
-      lcd.setCursor(0, 0); lcd.print("                ");
-      lcd.setCursor(5, 0); lcd.write(1);
-      lcd.setCursor(6, 0); lcd.write(2);
-      lcd.setCursor(8, 0); lcd.print("410"); 
-      lcd.setCursor(0, 1); lcd.write(1); 
-      lcd.setCursor(1, 1); lcd.write(2);
-      lcd.setCursor(0, 1); lcd.print("SCH University");
-      break;
-      
+        lcd.setCursor(0, 0); lcd.print("                ");
+        lcd.setCursor(5, 0); lcd.write(1);
+        lcd.setCursor(6, 0); lcd.write(2);
+        lcd.setCursor(8, 0); lcd.print("410");
+        lcd.setCursor(0, 1); lcd.write(1);
+        lcd.setCursor(1, 1); lcd.write(2);
+        lcd.setCursor(0, 1); lcd.print("SCH University");
+        break;
+
     case '4':
-      lcd.setCursor(0, 0); lcd.print("                ");
-      lcd.setCursor(5, 0); lcd.write(1);
-      lcd.setCursor(6, 0); lcd.write(2);
-      lcd.setCursor(8, 0); lcd.print("430");
-      lcd.setCursor(0, 1); lcd.write(1); 
-      lcd.setCursor(1, 1); lcd.write(2);
-      lcd.setCursor(0, 1); lcd.print("SCH University");
-      break;
-      
+        lcd.setCursor(0, 0); lcd.print("                ");
+        lcd.setCursor(5, 0); lcd.write(1);
+        lcd.setCursor(6, 0); lcd.write(2);
+        lcd.setCursor(8, 0); lcd.print("430");
+        lcd.setCursor(0, 1); lcd.write(1);
+        lcd.setCursor(1, 1); lcd.write(2);
+        lcd.setCursor(0, 1); lcd.print("SCH University");
+        break;
+
     case '5':
-      lcd.setCursor(0, 0); lcd.print("                ");
-      lcd.setCursor(5, 0); lcd.write(1);
-      lcd.setCursor(6, 0); lcd.write(2);
-      lcd.setCursor(8, 0); lcd.print("441");
-      lcd.setCursor(0, 1); lcd.write(1); 
-      lcd.setCursor(1, 1); lcd.write(2);
-      lcd.setCursor(0, 1); lcd.print("SCH University");
-      break;
-  }
+        lcd.setCursor(0, 0); lcd.print("                ");
+        lcd.setCursor(5, 0); lcd.write(1);
+        lcd.setCursor(6, 0); lcd.write(2);
+        lcd.setCursor(8, 0); lcd.print("441");
+        lcd.setCursor(0, 1); lcd.write(1);
+        lcd.setCursor(1, 1); lcd.write(2);
+        lcd.setCursor(0, 1); lcd.print("SCH University");
+        break;
+    }
 }
